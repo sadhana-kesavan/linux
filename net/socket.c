@@ -1551,7 +1551,6 @@ SYSCALL_DEFINE2(listen, int, fd, int, backlog)
 int __sys_accept4(int fd, struct sockaddr __user *upeer_sockaddr,
 		  int __user *upeer_addrlen, int flags)
 {
-        printk(KERN_DEBUG "testing connection accept");
         struct socket *sock, *newsock;
 	struct file *newfile;
 	int err, len, newfd, fput_needed;
@@ -1656,7 +1655,6 @@ SYSCALL_DEFINE3(accept, int, fd, struct sockaddr __user *, upeer_sockaddr,
 
 int __sys_connect(int fd, struct sockaddr __user *uservaddr, int addrlen)
 {
-        printk(KERN_DEBUG "testing connection started");
 	struct socket *sock;
 	struct sockaddr_storage address;
 	int err, fput_needed;

@@ -70,6 +70,10 @@ struct sched_attr {
 	__u64 sched_runtime;
 	__u64 sched_deadline;
 	__u64 sched_period;
+
+	/* SCHED_CASIO */
+	__u64 casio_deadline;
+	__u64 casio_id;
 };
 
 #endif /* _UAPI_LINUX_SCHED_TYPES_H */

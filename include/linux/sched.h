@@ -498,6 +498,18 @@ struct sched_rt_entity {
 #endif
 } __randomize_layout;
 
+
+#ifdef	CONFIG_SCHED_CASIO_POLICY
+struct sched_casio_entity {
+	unsigned int casio_id;
+	unsigned long long rel_deadline;
+	unsigned long long absolute_deadline;
+
+	struct rb_node casio_rb_node;
+	struct list_head casio_list_node;
+};
+#endif	/* CONFIG_SCHED_CASIO_POLICY */
+
 struct sched_dl_entity {
 	struct rb_node			rb_node;
 
@@ -644,6 +656,10 @@ struct task_struct {
 	const struct sched_class	*sched_class;
 	struct sched_entity		se;
 	struct sched_rt_entity		rt;
+#ifdef CONFIG_SCHED_CASIO_POLICY
+	struct sched_casio_entity	casio;
+#endif
+
 #ifdef CONFIG_CGROUP_SCHED
 	struct task_group		*sched_task_group;
 #endif

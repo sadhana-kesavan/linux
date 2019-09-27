@@ -173,7 +173,7 @@ static inline int dl_policy(int policy)
 static inline bool valid_policy(int policy)
 {
 	return idle_policy(policy) || fair_policy(policy) ||
-		rt_policy(policy) || dl_policy(policy);
+		rt_policy(policy) || dl_policy(policy) || policy == SCHED_CASIO;
 }
 
 static inline int task_has_rt_policy(struct task_struct *p)
@@ -730,6 +730,16 @@ struct root_domain {
 	unsigned long		max_cpu_capacity;
 };
 
+
+
+#ifdef CONFIG_SCHED_CASIO_POLICY
+struct casio_rq {
+	struct rb_root casio_rb_root;
+	struct list_head casio_list_head;
+	atomic_t nr_running;
+};
+#endif /* CONFIG_SCHED_CASIO_POLICY */
+
 extern struct root_domain def_root_domain;
 extern struct mutex sched_domains_mutex;
 
@@ -784,6 +794,10 @@ struct rq {
 	struct cfs_rq		cfs;
 	struct rt_rq		rt;
 	struct dl_rq		dl;
+
+#ifdef CONFIG_SCHED_CASIO_POLICY
+	struct casio_rq		casio;
+#endif /* CONFIG_SCHED_CASIO_POLICY */
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
 	/* list of leaf cfs_rq on this CPU: */
@@ -1547,11 +1561,7 @@ static inline void set_curr_task(struct rq *rq, struct task_struct *curr)
 	curr->sched_class->set_curr_task(rq);
 }
 
-#ifdef CONFIG_SMP
-#define sched_class_highest (&stop_sched_class)
-#else
-#define sched_class_highest (&dl_sched_class)
-#endif
+#define sched_class_highest (&casio_sched_class)
 #define for_each_class(class) \
    for (class = sched_class_highest; class; class = class->next)
 
@@ -1560,6 +1570,10 @@ extern const struct sched_class dl_sched_class;
 extern const struct sched_class rt_sched_class;
 extern const struct sched_class fair_sched_class;
 extern const struct sched_class idle_sched_class;
+
+#ifdef CONFIG_SCHED_CASIO_POLICY
+extern const struct sched_class casio_sched_class;
+#endif /* CONFIG_SCHED_CASIO_POLICY */
 
 
 #ifdef CONFIG_SMP
@@ -2053,6 +2067,9 @@ print_numa_stats(struct seq_file *m, int node, unsigned long tsf,
 extern void init_cfs_rq(struct cfs_rq *cfs_rq);
 extern void init_rt_rq(struct rt_rq *rt_rq);
 extern void init_dl_rq(struct dl_rq *dl_rq);
+#ifdef CONFIG_SCHED_CASIO_POLICY
+extern void init_casio_rq(struct casio_rq *casio_rq);
+#endif /* CONFIG_SCHED_CASIO_POLICY */
 
 extern void cfs_bandwidth_usage_inc(void);
 extern void cfs_bandwidth_usage_dec(void);
@@ -2193,4 +2210,37 @@ static inline unsigned long cpu_util_cfs(struct rq *rq)
 
 	return util;
 }
+#endif
+
+
+
+#ifdef	CONFIG_SCHED_CASIO_POLICY
+
+/* Rolls its own logging system for events related to CASIO */
+#define CASIO_MSG_SIZE		400
+#define CASIO_MAX_EVENT_LINES	10000
+
+#define CASIO_ENQUEUE		1
+#define CASIO_DEQUEUE		2
+#define	CASIO_CONTEXT_SWITCH	3
+#define	CASIO_MSG		4
+
+#define CASIO_EVENT_CODE(i) ("?EDSM?????"[i])
+
+struct casio_event{
+	int action;
+	unsigned long long timestamp;
+	char msg[CASIO_MSG_SIZE];
+};
+
+struct casio_event_log{
+	struct casio_event casio_event[CASIO_MAX_EVENT_LINES];
+	unsigned long lines;
+	unsigned long cursor;
+};
+
+void init_casio_event_log(void);
+struct casio_event_log * get_casio_event_log(void);
+void register_casio_event(unsigned long long t, char *m, int a);
+
 #endif

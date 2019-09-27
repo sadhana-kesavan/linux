@@ -3416,6 +3416,12 @@ static void __sched notrace __schedule(bool preempt)
 	struct rq *rq;
 	int cpu;
 
+#ifdef  CONFIG_SCHED_CASIO_POLICY
+/* Buffer for casio to spritnf messages for event log */
+        char msg[CASIO_MSG_SIZE];
+#endif
+
+
 	cpu = smp_processor_id();
 	rq = cpu_rq(cpu);
 	prev = rq->curr;
@@ -3475,6 +3481,20 @@ static void __sched notrace __schedule(bool preempt)
 	next = pick_next_task(rq, prev, &rf);
 	clear_tsk_need_resched(prev);
 	clear_preempt_need_resched();
+
+#ifdef  CONFIG_SCHED_CASIO_POLICY
+/* If either task involved in schedule() is a casio task, log context_switch */
+        if(prev->policy==SCHED_CASIO || next->policy==SCHED_CASIO){
+		int prev_cid = prev->policy==SCHED_CASIO?prev->casio.casio_id:-1;
+		int next_cid = next->policy==SCHED_CASIO?next->casio.casio_id:-1;
+
+		snprintf(msg,CASIO_MSG_SIZE,"prev->(cid%d:pid%d),next->(cid%d:pid%d)",
+				prev_cid,prev->pid,next_cid,next->pid);
+                register_casio_event(sched_clock(), msg, CASIO_CONTEXT_SWITCH);
+
+
+        }
+#endif
 
 	if (likely(prev != next)) {
 		rq->nr_switches++;
@@ -4087,7 +4107,11 @@ static void __setscheduler_params(struct task_struct *p,
 
 	p->policy = policy;
 
-	if (dl_policy(policy))
+	if (policy == SCHED_CASIO) {
+		p->casio.casio_id = attr->casio_id;
+		p->casio.rel_deadline = attr->casio_deadline;
+		/* Don't initialize list or rb tree node */
+	} else if (dl_policy(policy))
 		__setparam_dl(p, attr);
 	else if (fair_policy(policy))
 		p->static_prio = NICE_TO_PRIO(attr->sched_nice);
@@ -4116,7 +4140,9 @@ static void __setscheduler(struct rq *rq, struct task_struct *p,
 	if (keep_boost)
 		p->prio = rt_effective_prio(p, p->prio);
 
-	if (dl_prio(p->prio))
+	if (p->policy == SCHED_CASIO) /* Normally scheduler determined by prio, casio is exception*/
+		p->sched_class = &casio_sched_class;
+	else if (dl_prio(p->prio))
 		p->sched_class = &dl_sched_class;
 	else if (rt_prio(p->prio))
 		p->sched_class = &rt_sched_class;
@@ -6024,6 +6050,11 @@ void __init sched_init(void)
 		init_cfs_rq(&rq->cfs);
 		init_rt_rq(&rq->rt);
 		init_dl_rq(&rq->dl);
+
+#ifdef CONFIG_SCHED_CASIO_POLICY
+		init_casio_rq(&rq->casio);
+#endif /* CONFIG_SCHED_CASIO_POLICY */
+
 #ifdef CONFIG_FAIR_GROUP_SCHED
 		root_task_group.shares = ROOT_TASK_GROUP_LOAD;
 		INIT_LIST_HEAD(&rq->leaf_cfs_rq_list);
@@ -6111,6 +6142,10 @@ void __init sched_init(void)
 	init_sched_fair_class();
 
 	init_schedstats();
+
+#ifdef CONFIG_SCHED_CASIO_POLICY
+	init_casio_event_log();
+#endif /* CONFIG_SCHED_CASIO_POLICY */
 
 	scheduler_running = 1;
 }
