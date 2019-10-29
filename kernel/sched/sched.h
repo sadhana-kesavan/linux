@@ -85,6 +85,7 @@ struct cpuidle_state;
 /* task_struct::on_rq states: */
 #define TASK_ON_RQ_QUEUED	1
 #define TASK_ON_RQ_MIGRATING	2
+#define DEF_TIMESLICE           (100 * HZ / 1000)
 
 extern __read_mostly int scheduler_running;
 
@@ -163,7 +164,7 @@ static inline int fair_policy(int policy)
 
 static inline int rt_policy(int policy)
 {
-	return policy == SCHED_FIFO || policy == SCHED_RR;
+	return policy == SCHED_FIFO || policy == SCHED_RR || policy == SCHED_CASIO;
 }
 
 static inline int dl_policy(int policy)
@@ -316,6 +317,7 @@ extern bool dl_param_changed(struct task_struct *p, const struct sched_attr *att
 extern int  dl_task_can_attach(struct task_struct *p, const struct cpumask *cs_cpus_allowed);
 extern int  dl_cpuset_cpumask_can_shrink(const struct cpumask *cur, const struct cpumask *trial);
 extern bool dl_cpu_busy(unsigned int cpu);
+extern void resched_curr(struct rq *rq);
 
 #ifdef CONFIG_CGROUP_SCHED
 
@@ -453,7 +455,6 @@ extern void sched_online_group(struct task_group *tg,
 			       struct task_group *parent);
 extern void sched_destroy_group(struct task_group *tg);
 extern void sched_offline_group(struct task_group *tg);
-
 extern void sched_move_task(struct task_struct *tsk);
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
@@ -751,10 +752,28 @@ extern void rto_push_irq_work_func(struct irq_work *work);
  * (such as the load balancing or the thread migration code), lock
  * acquire operations must be ordered by ascending &runqueue.
  */
+
+#ifdef CONFIG_SCHED_CASIO_POLICY
+struct casio_task {
+	struct rb_node casio_rb_node;
+	unsigned long long absolute_deadline;
+	struct list_head casio_list_node;
+	struct task_struct *task;
+};
+struct casio_rq {
+	struct rb_root casio_rb_root;
+	struct list_head casio_list_head;
+	atomic_t nr_running;
+};
+#endif
+
+
 struct rq {
 	/* runqueue lock: */
 	raw_spinlock_t		lock;
-
+#ifdef CONFIG_SCHED_CASIO_POLICY
+	struct casio_rq casio_rq;
+#endif
 	/*
 	 * nr_running and cpu_load should be in the same cacheline because
 	 * remote CPUs use both these fields when doing load calculation.
@@ -1324,6 +1343,7 @@ static inline void __set_task_cpu(struct task_struct *p, unsigned int cpu)
 # define const_debug const
 #endif
 
+
 #define SCHED_FEAT(name, enabled)	\
 	__SCHED_FEAT_##name ,
 
@@ -1547,19 +1567,26 @@ static inline void set_curr_task(struct rq *rq, struct task_struct *curr)
 	curr->sched_class->set_curr_task(rq);
 }
 
-#ifdef CONFIG_SMP
+
+extern const struct sched_class rt_sched_class;
+extern const struct sched_class stop_sched_class;
+extern const struct sched_class dl_sched_class;
+extern const struct sched_class fair_sched_class;
+extern const struct sched_class idle_sched_class;
+
+#ifdef	CONFIG_SCHED_CASIO_POLICY
+# include "sched_casio.h"
+#endif
+
+#ifdef CONFIG_SCHED_CASIO_POLICY
+#define sched_class_highest (&casio_sched_class)
+#elif CONFIG_SMP
 #define sched_class_highest (&stop_sched_class)
 #else
 #define sched_class_highest (&dl_sched_class)
 #endif
 #define for_each_class(class) \
    for (class = sched_class_highest; class; class = class->next)
-
-extern const struct sched_class stop_sched_class;
-extern const struct sched_class dl_sched_class;
-extern const struct sched_class rt_sched_class;
-extern const struct sched_class fair_sched_class;
-extern const struct sched_class idle_sched_class;
 
 
 #ifdef CONFIG_SMP
@@ -1609,7 +1636,6 @@ extern void init_sched_fair_class(void);
 
 extern void reweight_task(struct task_struct *p, int prio);
 
-extern void resched_curr(struct rq *rq);
 extern void resched_cpu(int cpu);
 
 extern struct rt_bandwidth def_rt_bandwidth;

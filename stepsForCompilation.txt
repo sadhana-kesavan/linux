@@ -1,0 +1,8 @@
+The following are the steps for compilation:
+
+1. Started By including the fs/proc/proc_misc.c
+   - the read  method in proc_misc has a different signature which return ssize_t type object.Fix implemented.
+2. Included the changes in include/linux/sched.h
+3. Fix to define DEF_TIMESLICE was put in kernel/sched/sched.h
+4. changed resched_task(rq->curr) to resched_curr(rq) and declared extern void resched_curr
+5.
