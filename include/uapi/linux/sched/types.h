@@ -6,6 +6,10 @@
 
 struct sched_param {
 	int sched_priority;
+  #ifdef CONFIG_SCHED_CASIO_POLICY
+     unsigned int casio_id;
+     unsigned long long deadline;
+  #endif
 };
 
 #define SCHED_ATTR_SIZE_VER0	48	/* sizeof first published struct */

@@ -3476,6 +3476,26 @@ static void __sched notrace __schedule(bool preempt)
 	clear_tsk_need_resched(prev);
 	clear_preempt_need_resched();
 
+#ifdef CONFIG_CHED_CASIO_POLICY
+ char msg[CASIO_MSG_SIZE];
+ if(prev->policy==SCHED_CASIO || next->policy==SCHED_CASIO){
+                if(prev->policy==SCHED_CASIO && next->policy==SCHED_CASIO){
+                        snprintf(msg,CASIO_MSG_SIZE,"prev->(%d:%d),next->(%d:%d)",prev->casio_id,prev->pid,next->casio_id,next->pid); 
+                }
+                else{
+                        if(prev->policy==SCHED_CASIO){
+                                snprintf(msg,CASIO_MSG_SIZE,"prev->(%d:%d),next->(-1:%d)",prev->casio_id,prev->pid,next->pid); 
+                        }else{
+                                snprintf(msg,CASIO_MSG_SIZE,"prev->(-1:%d),next->(%d:%d)",prev->pid,next->casio_id,next->pid); 
+                        }
+                }
+                register_casio_event(sched_clock(), msg, CASIO_CONTEXT_SWITCH);
+
+
+        } 
+#endif
+
+
 	if (likely(prev != next)) {
 		rq->nr_switches++;
 		rq->curr = next;
@@ -4086,12 +4106,11 @@ static void __setscheduler_params(struct task_struct *p,
 		policy = p->policy;
 
 	p->policy = policy;
-
+        
 	if (dl_policy(policy))
 		__setparam_dl(p, attr);
 	else if (fair_policy(policy))
 		p->static_prio = NICE_TO_PRIO(attr->sched_nice);
-
 	/*
 	 * __sched_setscheduler() ensures attr->sched_priority == 0 when
 	 * !rt_policy. Always setting this ensures that things like
@@ -4122,6 +4141,10 @@ static void __setscheduler(struct rq *rq, struct task_struct *p,
 		p->sched_class = &rt_sched_class;
 	else
 		p->sched_class = &fair_sched_class;
+
+#ifdef CONFIG_SCHED_CASIO_POLICY
+   p->sched_class = &casio_sched_class;
+#endif
 }
 
 /*
@@ -4352,7 +4375,12 @@ change:
 		put_prev_task(rq, p);
 
 	prev_class = p->sched_class;
-	__setscheduler(rq, p, attr, pi);
+	#ifdef CONFIG_SCHED_CASIO_POLICY
+                if(policy == SCHED_CASIO){
+                    add_casio_task_2_list(&rq->casio_rq, p);
+             }
+        #endif
+        __setscheduler(rq, p, attr, pi);
 
 	if (queued) {
 		/*
@@ -4391,6 +4419,13 @@ static int _sched_setscheduler(struct task_struct *p, int policy,
 		.sched_priority = param->sched_priority,
 		.sched_nice	= PRIO_TO_NICE(p->static_prio),
 	};
+
+        #ifdef CONFIG_SCHED_CASIO_POLICY
+        if(policy == SCHED_CASIO) {
+          p->deadline = param->deadline;
+          p->casio_id=param->casio_id;
+         }
+        #endif
 
 	/* Fixup the legacy SCHED_RESET_ON_FORK hack. */
 	if ((policy != SETPARAM_POLICY) && (policy & SCHED_RESET_ON_FORK)) {
@@ -5957,6 +5992,10 @@ void __init sched_init(void)
 	sched_clock_init();
 	wait_bit_init();
 
+#ifdef CONFIG_SCHED_CASIO_POLICY
+ init_casio_event_log();
+#endif
+
 #ifdef CONFIG_FAIR_GROUP_SCHED
 	alloc_size += 2 * nr_cpu_ids * sizeof(void **);
 #endif
@@ -6024,6 +6063,10 @@ void __init sched_init(void)
 		init_cfs_rq(&rq->cfs);
 		init_rt_rq(&rq->rt);
 		init_dl_rq(&rq->dl);
+#ifdef CONFIG_SCHED_CASIO_POLICY
+init_casio_rq(&rq->casio_rq);
+#endif
+
 #ifdef CONFIG_FAIR_GROUP_SCHED
 		root_task_group.shares = ROOT_TASK_GROUP_LOAD;
 		INIT_LIST_HEAD(&rq->leaf_cfs_rq_list);
@@ -6112,6 +6155,9 @@ void __init sched_init(void)
 
 	init_schedstats();
 
+ #ifdef CONFIG_SCHED_CASIO_POLICY
+  init_casio_event_log();
+ #endif
 	scheduler_running = 1;
 }
 

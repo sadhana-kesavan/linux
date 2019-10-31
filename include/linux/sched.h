@@ -111,6 +111,36 @@ struct task_group;
 					 (task->flags & PF_FROZEN) == 0 && \
 					 (task->state & TASK_NOLOAD) == 0)
 
+#ifdef CONFIG_SCHED_CASIO_POLICY
+#define SCHED_CASIO		6
+#endif
+
+#ifdef	CONFIG_SCHED_CASIO_POLICY
+
+#define CASIO_MSG_SIZE		400
+#define CASIO_MAX_EVENT_LINES	10000
+
+#define CASIO_ENQUEUE		1
+#define CASIO_DEQUEUE		2
+#define	CASIO_CONTEXT_SWITCH	3
+#define	CASIO_MSG		4
+
+struct casio_event{
+	int action;
+	unsigned long long timestamp;
+	char msg[CASIO_MSG_SIZE];
+};
+
+struct casio_event_log{
+	struct casio_event casio_event[CASIO_MAX_EVENT_LINES];
+	unsigned long lines;
+	unsigned long cursor;
+};
+
+extern struct casio_event_log * get_casio_event_log(void);
+
+#endif
+
 #ifdef CONFIG_DEBUG_ATOMIC_SLEEP
 
 /*
@@ -600,6 +630,10 @@ struct task_struct {
 #endif
 	/* -1 unrunnable, 0 runnable, >0 stopped: */
 	volatile long			state;
+#ifdef CONFIG_SCHED_CASIO_POLICY
+	unsigned int casio_id;
+	unsigned long long deadline;
+#endif
 
 	/*
 	 * This begins the randomizable portion of task_struct. Only
